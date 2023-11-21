@@ -33,9 +33,11 @@ public:
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
 
-	void MoveForward(float Value);
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_MoveForward(float Value);
 
-	void MoveRight(float Value);
+	UFUNCTION(Server, Reliable, WithValidation)
+	void Server_MoveRight(float Value);
 
 private:
 
@@ -48,8 +50,17 @@ private:
 	UPROPERTY(EditAnywhere)
 	float MaxDrivingForce = 10000;
 
+	//Minimum radius of car turning circle at full lock (m)
 	UPROPERTY(EditAnywhere)
-	float MaxDegreesPerSecond = 90;
+	float MinTurningRadius = 10;
+
+	//Higher means more drag
+	UPROPERTY(EditAnywhere)
+	float DragCoefficient = 16;
+
+	//Higher means more rollling resistance
+	UPROPERTY(EditAnywhere)
+	float RollingResistanceCoefficient = 0.015;
 
 	//Mass of the car {unit is kg}
 	UPROPERTY(EditAnywhere)
@@ -58,5 +69,8 @@ private:
 	void UpdateLocationFromVelocity(float DeltaTime);
 
 	void ApplyRotation(float DeltaTime);
+
+	FVector GetAirResistance();
+	FVector GetRollingResistance();
 
 };
