@@ -45,9 +45,20 @@ public:
 
 private:
 
+	UPROPERTY(Replicated)
 	FVector Velocity;
 
+	//Example for replicating with function
+	UPROPERTY(ReplicatedUsing=OnRep_ReplicatedTransform)
+	FTransform ReplicatedTransform;
+
+	UFUNCTION()
+	void OnRep_ReplicatedTransform();
+
+	UPROPERTY(Replicated)
 	float Throttle;
+
+	UPROPERTY(Replicated)
 	float SteeringThrow;
 
 	//Force applied to car when throttle is fully down {N}

@@ -3,6 +3,7 @@
 
 #include "GoKart.h"
 #include "Components/InputComponent.h"
+#include "Net/UnrealNetwork.h"
 
 //Debugger
 #include "DrawDebugHelpers.h"
@@ -16,7 +17,20 @@ AGoKart::AGoKart()
 {
  	// Set this pawn to call Tick() every frame.  You can turn this off to improve performance if you don't need it.
 	PrimaryActorTick.bCanEverTick = true;
+	bReplicates = true;
 
+}
+
+//Function that enables replication
+//Doesn't need header file (UPROPERTY(Replicated) searches for this function)
+void AGoKart::GetLifetimeReplicatedProps( TArray< FLifetimeProperty > & OutLifetimeProps ) const
+{
+	Super::GetLifetimeReplicatedProps( OutLifetimeProps );
+
+	DOREPLIFETIME( AGoKart, ReplicatedTransform );
+	DOREPLIFETIME( AGoKart, Velocity );
+	DOREPLIFETIME( AGoKart, Throttle );
+	DOREPLIFETIME( AGoKart, SteeringThrow );
 }
 
 // Called when the game starts or when spawned
@@ -24,6 +38,11 @@ void AGoKart::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	//Update the Client once per second
+	if(HasAuthority())
+	{
+		NetUpdateFrequency = 1;
+	}
 }
 
 FString GetEnumText(ENetRole Role)
@@ -62,6 +81,16 @@ void AGoKart::Tick(float DeltaTime)
 	ApplyRotation(DeltaTime);
 
 	DrawDebugString(GetWorld(), FVector(0, 0, 100), GetEnumText(GetLocalRole()), this, FColor::White, DeltaTime);
+
+	if(HasAuthority())
+	{
+		ReplicatedTransform = GetActorTransform();
+	} 
+}
+
+void AGoKart::OnRep_ReplicatedTransform()
+{
+	SetActorTransform(ReplicatedTransform);
 }
 
 void AGoKart::UpdateLocationFromVelocity(float DeltaTime)
