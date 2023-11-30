@@ -4,6 +4,7 @@
 #include "GoKart.h"
 #include "Components/InputComponent.h"
 #include "Net/UnrealNetwork.h"
+#include "Test/Test.h"
 
 //Debugger
 #include "DrawDebugHelpers.h"
@@ -43,6 +44,8 @@ void AGoKart::BeginPlay()
 	{
 		NetUpdateFrequency = 1;
 	}
+
+	Test::ConsoleMessage();
 }
 
 FString GetEnumText(ENetRole Role)
