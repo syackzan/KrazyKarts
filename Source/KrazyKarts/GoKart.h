@@ -71,28 +71,29 @@ public:
 	void MoveRight(float Value);
 
 	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_MoveForward(float Value);
-
-	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_MoveRight(float Value);
+	void Server_SendMove(FGoKartMove Move);
 
 private:
 
-	UPROPERTY(Replicated)
+	void SimulateMove(const FGoKartMove& Move);
+
+	FGoKartMove CreateMove(float DeltaTime);
+	void ClearAcknowledgedMoves(FGoKartMove LastMove);
+
+	UPROPERTY()
 	FVector Velocity;
 
-	//Example for replicating with function
-	UPROPERTY(ReplicatedUsing=OnRep_ReplicatedTransform)
-	FTransform ReplicatedTransform;
-
-	UFUNCTION()
-	void OnRep_ReplicatedTransform();
-
-	UPROPERTY(Replicated)
+	//UPROPERTY(Replicated) - replicated in struct now
 	float Throttle;
 
-	UPROPERTY(Replicated)
+	//UPROPERTY(Replicated) - replicated in struct now
 	float SteeringThrow;
+
+	UPROPERTY(ReplicatedUsing=OnRep_ServerState)
+	FGoKartState ServerState;
+
+	UFUNCTION()
+	void OnRep_ServerState();
 
 	//Force applied to car when throttle is fully down {N}
 	UPROPERTY(EditAnywhere)
@@ -116,9 +117,11 @@ private:
 
 	void UpdateLocationFromVelocity(float DeltaTime);
 
-	void ApplyRotation(float DeltaTime);
+	void ApplyRotation(float DeltaTime, float _SteeringThrow);
 
 	FVector GetAirResistance();
 	FVector GetRollingResistance();
+
+	TArray<FGoKartMove> UnacknowledgedMoves;
 
 };
