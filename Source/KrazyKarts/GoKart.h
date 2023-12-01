@@ -4,40 +4,9 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Pawn.h"
+#include "GoKartMovementComponent.h"
+#include "GoKartMovementReplicationComp.h"
 #include "GoKart.generated.h"
-
-USTRUCT()
-struct FGoKartMove
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	float Throttle;
-
-	UPROPERTY()
-	float SteeringThrow;
-
-	UPROPERTY()
-	float DeltaTime;
-
-	UPROPERTY()
-	float Time;
-};
-
-USTRUCT()
-struct FGoKartState
-{
-	GENERATED_USTRUCT_BODY()
-
-	UPROPERTY()
-	FTransform ReplicatedTransform;
-
-	UPROPERTY()
-	FVector Velocity;
-
-	UPROPERTY()
-	FGoKartMove LastMove;
-};
 
 UCLASS()
 class KRAZYKARTS_API AGoKart : public APawn
@@ -59,9 +28,6 @@ protected:
 	//Setup Player Input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
-	/** Called for movement input */
-	//void Move(const struct FInputActionValue& Value);
-
 public:	
 	// Called every frame
 	virtual void Tick(float DeltaTime) override;
@@ -70,58 +36,12 @@ public:
 
 	void MoveRight(float Value);
 
-	UFUNCTION(Server, Reliable, WithValidation)
-	void Server_SendMove(FGoKartMove Move);
-
 private:
 
-	void SimulateMove(const FGoKartMove& Move);
+	UPROPERTY(VisibleAnywhere)
+	UGoKartMovementComponent* MovementComponent;
 
-	FGoKartMove CreateMove(float DeltaTime);
-	void ClearAcknowledgedMoves(FGoKartMove LastMove);
-
-	UPROPERTY()
-	FVector Velocity;
-
-	//UPROPERTY(Replicated) - replicated in struct now
-	float Throttle;
-
-	//UPROPERTY(Replicated) - replicated in struct now
-	float SteeringThrow;
-
-	UPROPERTY(ReplicatedUsing=OnRep_ServerState)
-	FGoKartState ServerState;
-
-	UFUNCTION()
-	void OnRep_ServerState();
-
-	//Force applied to car when throttle is fully down {N}
-	UPROPERTY(EditAnywhere)
-	float MaxDrivingForce = 10000;
-
-	//Minimum radius of car turning circle at full lock (m)
-	UPROPERTY(EditAnywhere)
-	float MinTurningRadius = 10;
-
-	//Higher means more drag
-	UPROPERTY(EditAnywhere)
-	float DragCoefficient = 16;
-
-	//Higher means more rollling resistance
-	UPROPERTY(EditAnywhere)
-	float RollingResistanceCoefficient = 0.015;
-
-	//Mass of the car {unit is kg}
-	UPROPERTY(EditAnywhere)
-	float Mass = 1000;
-
-	void UpdateLocationFromVelocity(float DeltaTime);
-
-	void ApplyRotation(float DeltaTime, float _SteeringThrow);
-
-	FVector GetAirResistance();
-	FVector GetRollingResistance();
-
-	TArray<FGoKartMove> UnacknowledgedMoves;
+	UPROPERTY(VisibleAnywhere)
+	UGoKartMovementReplicationComp* MovementReplicationComp;
 
 };
