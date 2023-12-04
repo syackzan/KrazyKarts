@@ -3,8 +3,9 @@
 
 #include "GoKartMovementReplicationComp.h"
 
-//allow replication header
-#include "Net/UnrealNetwork.h"
+//Helper Libraries
+#include "Net/UnrealNetwork.h" //Enable Replication
+#include "GameFramework/GameStateBase.h" //Used to GetServerWorldTimeSeconds()
 
 // Sets default values for this component's properties
 UGoKartMovementReplicationComp::UGoKartMovementReplicationComp()
@@ -106,7 +107,11 @@ FHermiteCubicSpline UGoKartMovementReplicationComp::CreateSpline()
 void UGoKartMovementReplicationComp::InterpolateLocation(const FHermiteCubicSpline &Spline, float LerpRatio)
 {
 	FVector NewLocation = Spline.InterpolateLocation(LerpRatio);
-	GetOwner()->SetActorLocation(NewLocation);
+
+	if(MeshOffsetRoot != nullptr)
+	{
+		MeshOffsetRoot->SetWorldLocation(NewLocation);
+	}
 }
 
 void UGoKartMovementReplicationComp::InterpolateVelocity(const FHermiteCubicSpline &Spline, float LerpRatio)
@@ -122,7 +127,11 @@ void UGoKartMovementReplicationComp::InterpolateRotation(float LerpRatio)
 	FQuat TargetRotation = ServerState.ReplicatedTransform.GetRotation();
 	FQuat StartRotation = ClientStartTransform.GetRotation();
 	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
-	GetOwner()->SetActorRotation(NewRotation);
+
+	if(MeshOffsetRoot != nullptr)
+	{
+		MeshOffsetRoot->SetWorldRotation(NewRotation);
+	}
 }
 
 float UGoKartMovementReplicationComp::VelocityToDerivative()
@@ -180,19 +189,21 @@ void UGoKartMovementReplicationComp::AutonomousProxy_OnRep_ServerState()
 }
 
 void UGoKartMovementReplicationComp::SimulatedProxy_OnRep_ServerState()
-{
+{	
+	if(MovementComponent == nullptr) return;
+
 	ClientTimeBetweenLastUpdates = ClientTimeSinceUpdate;
 	ClientTimeSinceUpdate = 0;
-
-	ClientStartTransform = GetOwner()->GetActorTransform();
-
-	if(MovementComponent == nullptr)
+	
+	if(MeshOffsetRoot != nullptr)
 	{
-		UE_LOG(LogTemp, Warning, TEXT("Nullptr in SimulatedProxy"));
-		return;
+		ClientStartTransform.SetLocation(MeshOffsetRoot->GetComponentLocation());
+		ClientStartTransform.SetRotation(MeshOffsetRoot->GetComponentQuat());
 	}
 	
 	ClientStartVelocity = MovementComponent->GetVelocity();
+
+	GetOwner()->SetActorTransform(ServerState.ReplicatedTransform);
 }
 
 void UGoKartMovementReplicationComp::Server_SendMove_Implementation(FGoKartMove Move)
@@ -200,13 +211,30 @@ void UGoKartMovementReplicationComp::Server_SendMove_Implementation(FGoKartMove 
 	if(MovementComponent == nullptr)
 		return;
 
+	ClientSimulatedTime += Move.DeltaTime;
 	MovementComponent->SimulateMove(Move);
 
 	UpdateServerState(Move);
 };
 
 bool UGoKartMovementReplicationComp::Server_SendMove_Validate(FGoKartMove Move)
-{
-	return true; //TODO: Make Better Validation
+{	
+	float ProposedTime = ClientSimulatedTime + Move.DeltaTime;
+
+	bool ClientNotRunningAhead = ProposedTime < GetWorld()->GetGameState()->GetServerWorldTimeSeconds();
+	
+	if(!ClientNotRunningAhead)
+	{
+		UE_LOG(LogTemp, Error, TEXT("Client is running too fast"));
+		return false;
+	}
+
+	if(!Move.IsValid())
+	{
+		UE_LOG(LogTemp, Error, TEXT("Received invalid move"));
+		return false;
+	}
+
+	return true;
 }
 

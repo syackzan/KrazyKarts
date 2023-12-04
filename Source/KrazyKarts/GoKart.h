@@ -36,12 +36,13 @@ public:
 
 	void MoveRight(float Value);
 
-private:
-
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	UGoKartMovementComponent* MovementComponent;
 
-	UPROPERTY(VisibleAnywhere)
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly)
 	UGoKartMovementReplicationComp* MovementReplicationComp;
 
+private:
+
+	// ..
 };
