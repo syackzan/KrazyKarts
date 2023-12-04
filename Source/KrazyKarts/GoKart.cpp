@@ -28,6 +28,8 @@ AGoKart::AGoKart()
 void AGoKart::BeginPlay()
 {
 	Super::BeginPlay();
+
+	SetReplicateMovement(false);
 	
 	//Update the Client once per second
 	if(HasAuthority())

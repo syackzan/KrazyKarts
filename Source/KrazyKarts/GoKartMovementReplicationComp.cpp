@@ -42,27 +42,70 @@ void UGoKartMovementReplicationComp::TickComponent(float DeltaTime, ELevelTick T
 
 	if(MovementComponent == nullptr)
 		return;
-	
+
+	FGoKartMove LastMove = MovementComponent->GetLastMove();
+
 	//GetLocalRole() is called on actor, GetOwnerRole() is called on component
 	if(GetOwnerRole() == ROLE_AutonomousProxy)
 	{
-		FGoKartMove Move = MovementComponent->CreateMove(DeltaTime);
-		MovementComponent->SimulateMove(Move);
-
-		UnacknowledgedMoves.Add(Move);
-		Server_SendMove(Move);
+		UnacknowledgedMoves.Add(LastMove);
+		Server_SendMove(LastMove);
 	}
 
-	if(GetOwnerRole() == ROLE_Authority && Pawn->IsLocallyControlled())
+	if(Pawn->IsLocallyControlled())
 	{
-		FGoKartMove Move = MovementComponent->CreateMove(DeltaTime);
-		Server_SendMove(Move);
+		// FGoKartMove Move = MovementComponent->CreateMove(DeltaTime);
+		// Server_SendMove(Move);
+		UpdateServerState(LastMove);
 	}
 
 	if(GetOwnerRole() == ROLE_SimulatedProxy)
 	{
-		MovementComponent->SimulateMove(ServerState.LastMove);
+		ClientTick(DeltaTime);
 	}
+}
+
+void UGoKartMovementReplicationComp::UpdateServerState(const FGoKartMove& Move)
+{
+	ServerState.LastMove = Move;
+	ServerState.ReplicatedTransform = GetOwner()->GetActorTransform();
+	ServerState.Velocity = MovementComponent->GetVelocity();
+}
+
+void UGoKartMovementReplicationComp::ClientTick(float DeltaTime)
+{
+	ClientTimeSinceUpdate += DeltaTime;
+
+	if(ClientTimeBetweenLastUpdates < KINDA_SMALL_NUMBER)
+		return;
+
+	if(MovementComponent == nullptr)
+		return;
+
+	//Location Lerp
+	FVector TargetLocation = ServerState.ReplicatedTransform.GetLocation();
+	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBetweenLastUpdates;
+	FVector StartLocation = ClientStartTransform.GetLocation();
+	float VelocityToDerivative = ClientTimeBetweenLastUpdates * 100;
+	FVector StartDerivative = ClientStartVelocity * VelocityToDerivative;
+	//multiply by 100 to convert cms to meters
+	FVector TargetDerivative = ServerState.Velocity * VelocityToDerivative;
+
+	FVector NewLocation = FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+
+	GetOwner()->SetActorLocation(NewLocation);
+
+	FVector NewDerivative = FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	FVector NewVelocity = NewDerivative / VelocityToDerivative; 
+	MovementComponent->SetVelocity(NewVelocity);
+
+	//Rotation Slerp
+	FQuat TargetRotation = ServerState.ReplicatedTransform.GetRotation();
+	FQuat StartRotation = ClientStartTransform.GetRotation();
+
+	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
+
+	GetOwner()->SetActorRotation(NewRotation);
 }
 
 void UGoKartMovementReplicationComp::ClearAcknowledgedMoves(FGoKartMove LastMove)
@@ -82,7 +125,21 @@ void UGoKartMovementReplicationComp::ClearAcknowledgedMoves(FGoKartMove LastMove
 
 void UGoKartMovementReplicationComp::OnRep_ServerState()
 {
+	switch (GetOwnerRole())
+	{
+	case ROLE_AutonomousProxy:
+		AutonomousProxy_OnRep_ServerState();
+		break;
+	case ROLE_SimulatedProxy:
+		SimulatedProxy_OnRep_ServerState();
+		break;
+	default:
+		break;
+	}
+}
 
+void UGoKartMovementReplicationComp::AutonomousProxy_OnRep_ServerState()
+{
 	if(MovementComponent == nullptr)
 		return;
 
@@ -95,6 +152,23 @@ void UGoKartMovementReplicationComp::OnRep_ServerState()
 	{
 		MovementComponent->SimulateMove(Move);
 	}
+
+}
+
+void UGoKartMovementReplicationComp::SimulatedProxy_OnRep_ServerState()
+{
+	ClientTimeBetweenLastUpdates = ClientTimeSinceUpdate;
+	ClientTimeSinceUpdate = 0;
+
+	ClientStartTransform = GetOwner()->GetActorTransform();
+
+	if(MovementComponent == nullptr)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Nullptr in SimulatedProxy"));
+		return;
+	}
+	
+	ClientStartVelocity = MovementComponent->GetVelocity();
 }
 
 void UGoKartMovementReplicationComp::Server_SendMove_Implementation(FGoKartMove Move)
@@ -104,9 +178,7 @@ void UGoKartMovementReplicationComp::Server_SendMove_Implementation(FGoKartMove 
 
 	MovementComponent->SimulateMove(Move);
 
-	ServerState.LastMove = Move;
-	ServerState.ReplicatedTransform = GetOwner()->GetActorTransform();
-	ServerState.Velocity = MovementComponent->GetVelocity();
+	UpdateServerState(Move);
 };
 
 bool UGoKartMovementReplicationComp::Server_SendMove_Validate(FGoKartMove Move)

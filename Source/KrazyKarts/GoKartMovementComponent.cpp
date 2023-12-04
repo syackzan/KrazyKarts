@@ -12,8 +12,6 @@ UGoKartMovementComponent::UGoKartMovementComponent()
 	// Set this component to be initialized when the game starts, and to be ticked every frame.  You can turn these features
 	// off to improve performance if you don't need them.
 	PrimaryComponentTick.bCanEverTick = true;
-
-	// ...
 }
 
 
@@ -22,8 +20,7 @@ void UGoKartMovementComponent::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// ...
-	
+	Pawn = Cast<APawn>(GetOwner());
 }
 
 
@@ -32,7 +29,11 @@ void UGoKartMovementComponent::TickComponent(float DeltaTime, ELevelTick TickTyp
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 
-	// ...
+	if(GetOwnerRole() == ROLE_AutonomousProxy || Pawn->IsLocallyControlled())
+	{
+		LastMove = CreateMove(DeltaTime);
+		SimulateMove(LastMove);
+	}
 }
 
 void UGoKartMovementComponent::SimulateMove(const FGoKartMove& Move)

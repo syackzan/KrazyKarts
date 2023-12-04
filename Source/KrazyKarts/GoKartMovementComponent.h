@@ -51,9 +51,11 @@ public:
 
 	void SetSteeringThrow(float Value);
 
-	FGoKartMove CreateMove(float DeltaTime);
+	FGoKartMove GetLastMove() const {return LastMove;};
 
 private:
+
+	FGoKartMove CreateMove(float DeltaTime);
 
 	FVector GetAirResistance();
 	FVector GetRollingResistance();
@@ -88,6 +90,9 @@ private:
 	float Throttle;
 	float SteeringThrow;
 	
+	UPROPERTY()
+	APawn* Pawn;
 
+	FGoKartMove LastMove;
 		
 };
