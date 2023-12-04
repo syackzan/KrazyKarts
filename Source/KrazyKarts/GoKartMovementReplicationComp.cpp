@@ -82,31 +82,55 @@ void UGoKartMovementReplicationComp::ClientTick(float DeltaTime)
 	if(MovementComponent == nullptr)
 		return;
 
-	//Location Lerp
-	FVector TargetLocation = ServerState.ReplicatedTransform.GetLocation();
 	float LerpRatio = ClientTimeSinceUpdate / ClientTimeBetweenLastUpdates;
-	FVector StartLocation = ClientStartTransform.GetLocation();
-	float VelocityToDerivative = ClientTimeBetweenLastUpdates * 100;
-	FVector StartDerivative = ClientStartVelocity * VelocityToDerivative;
-	//multiply by 100 to convert cms to meters
-	FVector TargetDerivative = ServerState.Velocity * VelocityToDerivative;
+	FHermiteCubicSpline Spline = CreateSpline();
 
-	FVector NewLocation = FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	InterpolateLocation(Spline, LerpRatio);
 
+	InterpolateVelocity(Spline, LerpRatio);
+
+	InterpolateRotation(LerpRatio);
+}
+
+FHermiteCubicSpline UGoKartMovementReplicationComp::CreateSpline()
+{
+	FHermiteCubicSpline Spline;
+	//Location Lerp
+	Spline.TargetLocation = ServerState.ReplicatedTransform.GetLocation();
+	Spline.StartLocation = ClientStartTransform.GetLocation();
+	Spline.StartDerivative = ClientStartVelocity * VelocityToDerivative();
+	Spline.TargetDerivative = ServerState.Velocity * VelocityToDerivative();
+	return Spline;
+};
+
+void UGoKartMovementReplicationComp::InterpolateLocation(const FHermiteCubicSpline &Spline, float LerpRatio)
+{
+	FVector NewLocation = Spline.InterpolateLocation(LerpRatio);
 	GetOwner()->SetActorLocation(NewLocation);
+}
 
-	FVector NewDerivative = FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
-	FVector NewVelocity = NewDerivative / VelocityToDerivative; 
+void UGoKartMovementReplicationComp::InterpolateVelocity(const FHermiteCubicSpline &Spline, float LerpRatio)
+{
+	FVector NewDerivative = Spline.InterpolateDerivative(LerpRatio);
+	FVector NewVelocity = NewDerivative / VelocityToDerivative(); 
 	MovementComponent->SetVelocity(NewVelocity);
+}
 
-	//Rotation Slerp
+void UGoKartMovementReplicationComp::InterpolateRotation(float LerpRatio)
+{
+	//Get Target Rotation, Set Rotation, Create the New Rotation with Slerp & Set it
 	FQuat TargetRotation = ServerState.ReplicatedTransform.GetRotation();
 	FQuat StartRotation = ClientStartTransform.GetRotation();
-
 	FQuat NewRotation = FQuat::Slerp(StartRotation, TargetRotation, LerpRatio);
-
 	GetOwner()->SetActorRotation(NewRotation);
 }
+
+float UGoKartMovementReplicationComp::VelocityToDerivative()
+{
+	//multiply by 100 to convert cms to meters
+	return ClientTimeBetweenLastUpdates * 100;
+};
+
 
 void UGoKartMovementReplicationComp::ClearAcknowledgedMoves(FGoKartMove LastMove)
 {

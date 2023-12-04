@@ -7,6 +7,8 @@
 #include "GoKartMovementComponent.h"
 #include "GoKartMovementReplicationComp.generated.h"
 
+//More Important struct that will need to be passed around to differenct .cpp files
+//This is why it used the USTRUCT() property macro
 USTRUCT()
 struct FGoKartState
 {
@@ -20,6 +22,21 @@ struct FGoKartState
 
 	UPROPERTY()
 	FGoKartMove LastMove;
+};
+
+//SimpleStruct that will only function in this .cpp folder
+struct FHermiteCubicSpline 
+{
+	FVector StartLocation, StartDerivative, TargetLocation, TargetDerivative;
+
+	FVector InterpolateLocation(float LerpRatio) const
+	{
+		return FMath::CubicInterp(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	};
+	FVector InterpolateDerivative(float LerpRatio) const
+	{
+		return FMath::CubicInterpDerivative(StartLocation, StartDerivative, TargetLocation, TargetDerivative, LerpRatio);
+	};
 };
 
 
@@ -57,6 +74,11 @@ private:
 	void SimulatedProxy_OnRep_ServerState();
 
 	void ClientTick(float DeltaTime);
+	FHermiteCubicSpline CreateSpline();
+	void InterpolateLocation(const FHermiteCubicSpline &Spline, float LerpRatio);
+	void InterpolateVelocity(const FHermiteCubicSpline &Spline, float LerpRatio);
+	void InterpolateRotation(float LerpRatio);
+	float VelocityToDerivative();
 
 	TArray<FGoKartMove> UnacknowledgedMoves;
 
